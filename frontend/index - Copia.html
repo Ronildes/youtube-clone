@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="./style.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/3.1.3/socket.io.min.js" integrity="sha384-cPwlPLvBTa3sKAgddT6krw0cJat7egBga3DJepJyrLl4Q9/5WLra3rrnMcyTyOnh" crossorigin="anonymous"></script>
+    <title>Document</title>
+</head>
+
+<body>
+    <video width="100%" height="" controls autoplay id="video">
+        
+    </video>
+    
+    <button onclick="next()">Próximo</button>
+    <button onclick="cleara()">Limpar</button>
+
+    <h1>Não ultrapassar 10</h1>
+
+    <input class="video-drop" id="file" type="file"></input>
+
+    <button type="button" onclick="createChunks()">Upload File</button>
+
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="jquery.js"></script>
+    <script>
+        let i = localStorage.getItem("@indice") === null ? 0 : localStorage.getItem("@indice");
+        let socket = io('http://192.168.1.104:3000');
+
+        socket.on("next", () => {
+            next();
+        });
+
+        socket.on("clear", () => {
+            cleara();
+        });
+
+        function cleara() {
+            socket.emit("send-clear");
+            localStorage.setItem("@indice", 0);
+            location.reload();
+        }
+
+        async function next() {
+            i++;
+            localStorage.setItem("@indice", i);
+            socket.emit("send-next");
+            location.reload();
+            console.log(i);
+            console.log(localStorage.getItem("@indice"));
+        }
+
+        async function nexta() {
+            i++;
+            localStorage.setItem("@indice", i);
+            //socket.emit("send-next");
+            console.log(i);
+            console.log(localStorage.getItem("@indice"));
+        }
+
+        async function getVideo() {
+
+
+            const h1 = document.createElement("h1");
+            h1.innerText = `id: ${i === null ? 0 : i}`
+            document.body.appendChild(h1);
+
+            let child = document.createElement('source');
+            child.setAttribute('src', `http://192.168.1.104:3000/watch?id=${localStorage.getItem("@indice")  === null ? 0 : localStorage.getItem("@indice")}`);
+
+            document.getElementById('video').appendChild(child);
+
+            const headers = new Headers();
+            headers.append('Authorization', "Basic cm9uaWxkZXM6dGVzdGU=");
+            headers.append("Content-type", "application/json;charset=UTF-8");
+            headers.append('Origin', "http://someserver");
+            headers.append('Access-Control-Request-Method', 'POST');
+            headers.append('Access-Control-Request-Headers', 'Content-type', 'Authorization');
+
+           // const response = await fetch('http://192.168.1.104:3000/watch', {
+           //     method: 'GET',
+           //     headers,
+           // });
+
+            const form = new FormData();
+
+            //console.log(await response.json());
+        }
+
+        getVideo();
+    </script>
+
+    <script>
+        function createRandomNumber(max, min) {
+            const randomNumber = Math.floor(Math.random() * (max + 1) + min);
+            return randomNumber;
+        }
+
+        function createChunks() {
+            let h1 = document.createElement("h1");
+            h1.innerText = 'Fazendo upload';
+            h1.id = "progresso";
+            document.body.appendChild(h1);
+
+            const file = document.getElementById("file").files[0];
+            const type = file.type.split('/')[1];
+            console.log(file)
+
+            let startPointer = 0;
+            const endPointer = file.size;
+            const chunks = [];
+
+            let uploaded = false;
+
+            const byte = 1024;
+            const kb = byte * 1;
+            const mb = kb * 1000
+            const chunkSize = 1 * mb;
+
+            const id = createRandomNumber(999999, 0);
+            console.log(id);
+
+            let maxOrder = 0;
+
+            const chunksCount = (file.size / chunkSize).toFixed(0);
+
+            console.log(file.size);
+
+            while (startPointer < endPointer) {
+                let newStartPointer = startPointer + chunkSize;
+
+                chunks.push(file.slice(startPointer, newStartPointer))
+
+                startPointer = newStartPointer;
+            }
+
+            const reader = new FileReader();
+            let i = 0;
+            let canGo = true;
+            const timer = setInterval(() => {
+                if (i < chunks.length && canGo) {
+                    document.body.removeChild(h1);
+                    h1.innerText = "Progresso...";
+                    document.body.appendChild(h1);
+                    
+
+                    canGo = false;
+
+                    reader.readAsArrayBuffer(chunks[i]);
+
+                    reader.onload = async (evt) => {
+                        reader.abort();
+
+                        const arrayBuffer = evt.target.result;
+                        const uint8Array = new Uint8Array(arrayBuffer);
+
+                        const body = [
+                            `|${uint8Array}|`,
+                            uint8Array.byteLength,
+                            type,
+                            id,
+                            i,
+                        ];
+
+                        const headers = new Headers();
+                        headers.append('Authorization', "Basic cm9uaWxkZXM6dGVzdGU=");
+                        headers.append("Content-type", "application/json;charset=UTF-8");
+                        headers.append('Origin', "http://someserver");
+                        headers.append('Access-Control-Request-Method', 'POST');
+                        headers.append('Access-Control-Request-Headers', 'Content-type', 'Authorization');
+
+                        const response = await fetch('http://192.168.1.104:3000', {
+                            method: 'POST',
+                            headers,
+                            body,
+                        })
+
+                        if (response) {
+                            maxOrder++;
+                            i++;
+
+                            console.log(i);
+                            console.log(chunks.length)
+                            canGo = true;
+                        }
+
+                        if (response && maxOrder === chunks.length) {
+                            uploaded = true;
+                            maxOrder = 0;
+
+                            setTimeout(() => {
+                                axios({
+                                    url: 'http://192.168.1.104:3000/compose',
+                                    method: 'POST',
+                                    data: {
+                                        //mudar o name
+                                        id,
+                                        name: file.name.replace('.mp4', ''),
+                                        type,
+                                        size: file.size,
+                                        order: localStorage.getItem("@indice"),
+                                    },
+                                    headers: {
+                                        "Content-type": "application/json;charset=UTF-8"
+                                    },
+                                }).then((response) => {
+                                    document.body.removeChild(h1);
+                                    h1.innerText = "Upload feito!";
+                                    document.body.appendChild(h1);
+
+                                    setTimeout(() => {
+                                        if(document.getElementById("progresso") && !uploaded) {
+                                            document.body.removeChild(h1);
+                                        }
+                                    }, 5 * 1000);
+
+                                    console.log('Video uploaded');
+                                    nexta();
+                                    uploaded = false;
+                                    clearInterval(timer);
+                                });
+                            }, 1 * 1000);
+                        }
+                    };
+                }
+            }, 0.10 * 1000);
+
+            chunks.map((chunk, index) => {
+
+            });
+        }
+
+        function uploadFiles() {
+            let uploaded = false;
+
+            const file = document.getElementById("file").files[0];
+            const type = file.type.split('/')[1];
+
+            const byte = 1024;
+            const kb = byte * 1;
+            const mb = kb * 1000
+
+            const chunkSize = 10 * mb;
+            const chunks = createChunks(file, 1000);
+
+            const id = createRandomNumber(999999, 0);
+            console.log(id);
+
+            let maxOrder = 0;
+
+            chunks.map((chunk, index) => {
+                const reader = new FileReader();
+
+                reader.readAsArrayBuffer(chunk);
+
+                reader.onload = async (evt) => {
+                    const arrayBuffer = evt.target.result;
+                    const uint8Array = new Uint8Array(arrayBuffer);
+
+                    const response = await axios({
+                        url: 'http://192.168.1.104:3000',
+                        method: 'POST',
+                        data: {
+                            uint8Array: uint8Array,
+                            byteLength: uint8Array.byteLength,
+                            type,
+                            id,
+                            index,
+                        },
+                        headers: {
+                            "Content-type": "application/json;charset=UTF-8"
+                        },
+                    });
+
+                    if (response.data) {
+                        maxOrder += 1;
+                    }
+
+                    if (response.data && maxOrder === chunks.length) {
+                        uploaded = true;
+                    }
+                };
+            });
+
+            setInterval(() => {
+                if (uploaded) {
+                    axios({
+                        url: 'http://192.168.1.104:3000/compose',
+                        method: 'POST',
+                        data: {
+                            id,
+                            type,
+                            size: file.size,
+                        },
+                        headers: {
+                            "Content-type": "application/json;charset=UTF-8"
+                        },
+                    }).then((response) => {
+                        console.log('Video uploaded');
+                        uploaded = false;
+                    });
+                }
+            }, 1 * 1000);
+
+            /*
+fetch('http://192.168.1.104:3000', {
+    method: 'POST',
+    body: JSON.stringify({
+        file: JSON.stringify(evt.target.result),
+        type,
+        fileSize: file.size
+    }),
+    headers: {
+        "Content-type": "application/json; charset=UTF-8"
+    },
+    onUploadProgress: (data) => {
+        console.log(data)
+    }
+});
+*/
+        }
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="./style.css" rel="stylesheet">
+    <title>Document</title>
+</head>
+<body>
+    <form enctype="multipart/form-data" method="post">
+        <input class="video-drop" id="file" type="file"></input>
+
+        <button type="button" onclick="uploadFiles()">Upload File</button>
+    </form>
+
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script>
+        document.addEventListener('submit', (event) => {
+            
+        })
+
+        function createRandomNumber(max, min) {
+            const randomNumber = Math.floor(Math.random() * (max + 1) + min);
+            return randomNumber;
+        }
+
+        function createChunks(file, cSize) {
+            let startPointer = 0;
+            const endPointer = file.size;
+            const chunks = [];
+
+            while(startPointer < endPointer) {
+                let newStartPointer = startPointer + cSize;
+
+                chunks.push(file.slice(startPointer, newStartPointer));
+                startPointer = newStartPointer;
+            }
+
+            return chunks;
+        }
+
+        function uploadFiles() {
+            /*
+            const reader = new FileReader();
+
+           const buffer = reader.readAsArrayBuffer(file);
+
+            const blob = new Blob([file], {
+                type: "application/json"
+            });
+            */
+
+            let uploaded = false;
+
+            const file = document.getElementById("file").files[0];
+            const type = file.type.split('/')[1];
+
+            const byte = 1024;
+            const kb = byte * 1;
+            const mb = kb * 1000
+
+            const chunkSize = 5 * mb;
+            const chunks = createChunks(file, chunkSize);
+
+            const id = createRandomNumber(999999, 0);
+            console.log(id);
+            
+            chunks.map((chunk, index) => {
+                const reader = new FileReader();
+
+                reader.readAsArrayBuffer(chunk);
+
+                reader.onload = async (evt) => {
+                    const arrayBuffer = evt.target.result;
+                    const uint8Array = new Uint8Array(arrayBuffer);
+
+                    const response = await axios({
+                        url: 'http://localhost:3000',
+                        method: 'POST',
+                        data: {
+                            uint8Array: uint8Array,
+                            byteLength: uint8Array.byteLength,
+                            type,
+                            id,
+                            index,
+                        },
+                        headers: {
+                            "Content-type": "application/json;charset=UTF-8"
+                        },
+                    });
+
+                    if(response.data && index == chunks.length) {
+                        console.log('hello')
+                        uploaded = true;
+                    }
+                };
+            });
+
+            setInterval(() => {
+                if(uploaded) {
+                    axios({
+                        url: 'http://localhost:3000/compose',
+                        method: 'POST',
+                        data: {
+                            id,
+                            type,
+                            size: file.size,
+                        },
+                        headers: {
+                        "Content-type": "application/json;charset=UTF-8"
+                        },
+                    }).then((response) => {
+                        console.log('Video uploaded');
+                        uploaded = false;
+                    });
+                }
+            }, 1 * 1000);
+
+                            /*
+                fetch('http://localhost:3000', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        file: JSON.stringify(evt.target.result),
+                        type,
+                        fileSize: file.size
+                    }),
+                    headers: {
+                        "Content-type": "application/json; charset=UTF-8"
+                    },
+                    onUploadProgress: (data) => {
+                        console.log(data)
+                    }
+                });
+                */
+        }
+
+    </script>
+</body>
+</html>
